@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en" ng-app="datos">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="description" content="">
+    <meta name="author" content="">
+
+    <title>ABI</title>
+
+    <!-- Bootstrap core CSS -->
+    <link href="css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Custom styles for this template -->
+    <link href="dashboard.css" rel="stylesheet">
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.2.17/angular.min.js"></script>
+    <script src="js/base64js.min.js"></script>
+    <script src="js/ng-map.min.js"></script>
+    <script>
+      function resizeMap(){
+        $("#mapa").css({'height':($(document).height())+'px'});
+        console.log("call");
+      }
+    </script>
+    <script>
+      var datos = angular.module('datos', ['ngMap']);
+      datos.controller("DatosCtrl", function($scope, $http) {
+          $scope.email = ""; 
+          $scope.pin = ""; 
+
+          $scope.showLogin = function(){ 
+            $("#hostForm").hide(); 
+            $("#logoutForm").hide(); 
+            $("#registerForm").hide(); 
+            $("#loginForm").show(); 
+          }
+
+          $scope.showLogout = function(){ 
+            $("#hostForm").hide(); 
+            $("#loginForm").hide(); 
+            $("#registerForm").hide(); 
+            $("#logoutForm").show(); 
+          }
+
+          $scope.showRegister = function(){ 
+            $("#hostForm").hide(); 
+            $("#loginForm").hide(); 
+            $("#logoutForm").hide(); 
+            $("#registerForm").show(); 
+          }
+
+          $scope.showHome = function(){ 
+            $("#loginForm").hide(); 
+            $("#logoutForm").hide(); 
+            $("#registerForm").hide(); 
+            $("#hostForm").show(); 
+          }
+
+          $scope.hideRegisterButton = function(){
+            $(".showRegister").hide();
+          }
+
+          $scope.showRegisterButton = function(){
+            $(".showRegister").show();
+          }
+
+          $scope.updateMidpoints = function(){
+            var maxLat = Math.max.apply(Math,$scope.measurements.map(function(m){return m.Lat;}));
+            var minLat = Math.min.apply(Math,$scope.measurements.map(function(m){return m.Lat;}));
+            var maxLon = Math.max.apply(Math,$scope.measurements.map(function(m){return m.Lon;}));
+            var minLon = Math.min.apply(Math,$scope.measurements.map(function(m){return m.Lon;}));
+
+            $scope.midLat = (maxLat + minLat) / 2; 
+            $scope.midLon = (maxLon + minLon) / 2; 
+          }
+
+          $scope.register = function(){
+            console.log("Register");
+            $scope.email = this.email; 
+
+            var config = {headers:  {
+                    'X-Email': this.email,
+                    'Content-Type' : 'application/x-www-form-urlencoded; charset=UTF-8'
+                }
+            };
+
+            $http.get("https://qcpcaiadhuvgvyollans.azurewebsites.net/api/register", config)
+              .then(function(response){});
+
+            $scope.hideRegisterButton();
+            $scope.showLogin();
+          }
+
+          $scope.login = function(){
+            console.log("Login");
+            $scope.email = this.email; 
+            $scope.pin = this.pin;
+
+            var config = {headers:  {
+                  'X-Email': this.email,
+                  'X-PIN': this.pin,
+                  'Content-Type' : 'application/x-www-form-urlencoded; charset=UTF-8'
+                }
+            };
+
+            $http.get("https://qcpcaiadhuvgvyollans.azurewebsites.net/api/data", config)
+              .then(function(response){
+                $scope.measurements = JSON.parse(atob(response.data.replace(/['"]+/g,''))).map(function(m){
+                  m.pin = $scope.getPin(m);
+                  return m;
+                });
+                $scope.updateMidpoints();
+            })
+
+            $scope.showLogout(); 
+            $("#misDatos").show();
+          }
+
+          $scope.logout = function(){
+            console.log("Logout");
+            $scope.email = this.email; 
+            $scope.pin = this.pin; 
+            $scope.email = "";
+            $scope.pin = "";
+            var config = {headers:  {
+                  'X-Email': "Public",
+                  'X-PIN': "Public",
+                  'Content-Type' : 'application/x-www-form-urlencoded; charset=UTF-8'
+                }
+            };
+
+            $http.get("https://qcpcaiadhuvgvyollans.azurewebsites.net/api/data", config)
+              .then(function(response){
+                $scope.measurements = JSON.parse(atob(response.data.replace(/['"]+/g,''))).map(function(m){
+                  m.pin = $scope.getPin(m);
+                  return m;
+                }); 
+                $scope.updateMidpoints();
+            }) 
+            $scope.showRegisterButton();
+            $scope.showHome(); 
+            $("#misDatos").hide();                  
+          }
+
+          $scope.publish = function(m){
+              var config = {headers:  {
+                    'X-Email': this.email,
+                    'X-PIN': this.pin,
+                    'X-MID': m.MID,
+                    'X-GID': m.GID,
+                    'Content-Type' : 'application/x-www-form-urlencoded; charset=UTF-8'
+                  }
+              };
+
+              $http.get("https://qcpcaiadhuvgvyollans.azurewebsites.net/api/publish", config)
+                  .then(function(response){
+                    $scope.login();
+              });
+          }
+
+          $scope.owned = function(m){
+            return(m.GID == $scope.email);
+          }
+
+          $scope.public = function(m){
+            return(m.GID == "public");
+          }
+
+          $scope.bouncePin = function(m){
+            m.animation = "Animation.BOUNCE";
+          }
+
+          $scope.steadyPin = function(m){
+            m.animation = "Animation.NONE";
+          }
+
+          $scope.getPin = function(m){
+            var base = "https://chart.googleapis.com/chart?chst=d_map_pin_letter&chld=|"
+            if (m.IBA > 70) return base + "99E6FF";
+            if (m.IBA >= 45) return base + "94FF70";
+            if (m.IBA >= 27) return base + "FFFA4F";
+            if (m.IBA >= 11) return base + "FFAD33";
+            return base + "F75D63";
+          };
+
+          var config = {headers:  {
+                'X-Email': "Public",
+                'X-PIN': "Public",
+                'Content-Type' : 'application/x-www-form-urlencoded; charset=UTF-8'
+              }
+          };
+
+          $http.get("https://qcpcaiadhuvgvyollans.azurewebsites.net/api/data", config)
+            .then(function(response){
+              $scope.measurements = JSON.parse(atob(response.data.replace(/['"]+/g,''))).map(function(m){
+                  m.pin = $scope.getPin(m);
+                  return m;
+                });
+              $scope.updateMidpoints();
+              $("#datatable").show();
+          })
+          $scope.googleMapsUrl="https://maps.googleapis.com/maps/api/js?key=AIzaSyCzULq5MSK2E7gGwbKq7F6rMhSONCROvWQ"
+      });
+
+    </script>
+
+  </head>
+
+  <body ng-controller="DatosCtrl">
+    <nav class="navbar navbar-toggleable-md navbar-inverse fixed-top bg-inverse">
+      <button class="navbar-toggler navbar-toggler-right hidden-lg-up" type="button" data-toggle="collapse" data-target="#banner" aria-controls="navbarsExampleDefault" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <a class="navbar-brand" href="#">Andean Biotic Index</a>
+    
+      <div class="collapse navbar-collapse" id="banner">
+        <ul class="navbar-nav mr-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="#">Groupos</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#">Acerca De</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" data-toggle="modal" data-target="#escala">Escala</a>
+          </li>
+        </ul>
+        <form class="form-inline mt-2 mt-md-0" id="hostForm">          
+          <button class="btn btn-info my-2 my-sm-0" type="submit" ng-click="showLogin()">Ingresar</button>&nbsp; &nbsp;
+          <button class="btn btn-warning my-2 my-sm-0 showRegister" type="submit" ng-click="showRegister()">Registrarse</button>
+        </form>
+        <form class="form-inline mt-2 mt-md-0" id="registerForm" style="display: none;">
+          <input class="form-control mr-sm-3" type="text" placeholder="Email" ng-model="email">
+          <button class="btn btn-success my-2 my-sm-0" type="submit" ng-click="register()">OK</button>&nbsp; &nbsp;
+          <button class="btn btn-info my-2 my-sm-0" type="submit" ng-click="showLogin()">Ingresar</button>
+        </form>
+        <form class="form-inline mt-2 mt-md-0" id="loginForm" style="display: none;">
+          <input class="form-control mr-sm-3" type="text" placeholder="Email" ng-model="email">
+          <input class="form-control mr-sm-3" type="text" placeholder="PIN" ng-model="pin">
+          <button class="btn btn-success my-2 my-sm-0" type="submit" ng-click="login()">OK</button> &nbsp; &nbsp;        
+          <button class="btn btn-warning my-2 my-sm-0 showRegister" type="submit" ng-click="showRegister()">Registrarse</button>
+        </form>
+        <form class="form-inline mt-2 mt-md-0" id="logoutForm" style="display: none;">          
+          <button class="btn btn-critical mr-sm-3" type="text" placeholder="Email" ng-model="email">{{email}}</button>
+          <button class="btn btn-info my-2 my-sm-0" type="submit" ng-click="logout()">Desloguearse</button>
+        </form>
+      </div>
+    </nav>
+
+    <div id="datatable" class="container-fluid" style="height:100%; display: none;">
+      <div class="row">
+          <div class="col table-responsive"> 
+          <br>
+          <h5>Datos Públicos</h5>
+           <table class="table table-striped">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>fecha</th>
+                  <th>ABI</th>
+                  <th>calidad</th>
+                  <th>lat</th>
+                  <th>long</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr ng-repeat="m in measurements | filter:public" ng-mouseover="bouncePin(m)" ng-Mouseleave="steadyPin(m)">
+                  <td><img ng-src='{{m.pin}}'></td>
+                  <td>{{ 253402300800000 - m.MID.slice(0,-6) | date:"MM/dd/yyyy" }}</td>
+                  <td>{{m.IBA}}</td>
+                  <td>{{m.Calidad}}</td>
+                  <td>{{m.Lat}}</td>
+                  <td>{{m.Lon}}</td>
+                  <th></th>
+                </tr>
+              </tbody>
+            </table>
+            <br><br>
+            <div id = "misDatos" style="display: none;">
+            <h5>Mis Datos (No Visible Públicamente)</h5>
+            <table class="table table-striped">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>fecha</th>
+                  <th>ABI</th>
+                  <th>calidad</th>
+                  <th>lat</th>
+                  <th>long</th>
+                  <th>hacerlo<br>público</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr ng-repeat="m in measurements | filter:owned" ng-mouseover="bouncePin(m)" ng-Mouseleave="steadyPin(m)">
+                  <td><img ng-src='{{m.pin}}'></td>
+                  <td>{{ 253402300800000 - m.MID.slice(0,-6) | date:"MM/dd/yyyy" }}</td>
+                  <td>{{m.IBA}}</td>
+                  <td>{{m.Calidad}}</td>
+                  <td>{{m.Lat}}</td>
+                  <td>{{m.Lon}}</td>
+                  <td><button class="btn btn-info my-2 my-sm-0" type="submit" ng-click="publish(m)">OK</button></td>
+                  </div>
+                </tr>
+              </tbody>
+            </table>
+            </div>
+          </div>
+          <div class="col hidden-xs-down">
+            <div map-lazy-load="https://maps.google.com/maps/api/js"
+              map-lazy-load-params="{{googleMapsUrl}}">
+              <ng-map zoom="14" center="[{{midLat}},{{midLon}}]" id="mapa" style="height:100vh">
+                <marker id='{{pos.MID}}' ng-repeat="pos in measurements" position="{{pos.Lat}},{{pos.Lon}}" icon="{{pos.pin}}" animation={{pos.animation}}></marker>
+              </ng-map>
+            </div>
+          </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="escala" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+      <div class="modal-dialog" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="exampleModalLabel"></h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <img src="https://calculadora-de-abi.github.io/mapa/img/escala.png"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- Bootstrap core JavaScript
+    ================================================== -->
+    <!-- Placed at the end of the document so the pages load faster -->
+    <script src="https://code.jquery.com/jquery-3.1.1.slim.min.js" integrity="sha384-A7FZj7v+d/sdmMqp/nOQwliLvUsJfDHW+k9Omg/a/EheAdgtzNs3hpfag6Ed950n" crossorigin="anonymous"></script>
+    <script>window.jQuery || document.write('<script src="../../assets/js/vendor/jquery.min.js"><\/script>')</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tether/1.4.0/js/tether.min.js" integrity="sha384-DztdAPBWPRXSA/3eYEEUWrWCy7G5KFbe8fFjk5JAIxUYHKkDx6Qin1DkWx51bBrb" crossorigin="anonymous"></script>
+    <script src="js/bootstrap.min.js"></script>
+    <!-- IE10 viewport hack for Surface/desktop Windows 8 bug -->
+    <!--<script src="js/ie10-viewport-bug-workaround.js"></script> -->
+  </body>
+</html>
